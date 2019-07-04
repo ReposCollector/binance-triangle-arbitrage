@@ -85,6 +85,40 @@ const BinanceApi = {
         return method.toUpperCase() === 'BUY' ? BinanceApi.marketBuy : BinanceApi.marketSell;
     },
 
+    limitBuy(ticker, price, quantity) {
+        logger.execution.info(`${binance.getOption('test') ? 'Test: Buying' : 'Buying'} ${quantity} ${ticker} @ price ${price}`);
+        return new Promise((resolve, reject) => {
+            binance.buy(ticker, quantity, price,(error, response) => {
+                if (error) return BinanceApi.handleBuyOrSellError(error, reject);
+                if (binance.getOption('test')) {
+                    logger.execution.info(`Test: Successfully bought ${ticker} @ market price`);
+                } else {
+                    logger.execution.info(`Successfully bought ${response.executedQty} ${ticker} @ a quote of ${response.cummulativeQuoteQty}`);
+                }
+                return resolve(response);
+            })
+        })
+    },
+
+    limitSell(ticker, price, quantity) {
+        logger.execution.info(`${binance.getOption('test') ? 'Test: Selling' : 'Selling'} ${quantity} ${ticker} @ price ${price}`);
+        return new Promise((resolve, reject) => {
+            binance.sell(ticker, quantity, price,(error, response) => {
+                if (error) return BinanceApi.handleBuyOrSellError(error, reject);
+                if (binance.getOption('test')) {
+                    logger.execution.info(`Test: Successfully sold ${ticker} @ market price`);
+                } else {
+                    logger.execution.info(`Successfully sold ${response.executedQty} ${ticker} @ a quote of ${response.cummulativeQuoteQty}`);
+                }
+                return resolve(response);
+            });
+        });
+    },
+
+    limitBuyOrSell(method) {
+        return method.toUpperCase() === 'BUY' ? BinanceApi.marketBuy : BinanceApi.marketSell;
+    },
+
     handleBuyOrSellError(error, reject) {
         try {
             return reject(new Error(JSON.parse(error.body).msg));

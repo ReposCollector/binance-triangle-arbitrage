@@ -74,40 +74,41 @@ const CalculationNode = {
                 spent: 0,
                 earned: 0,
                 delta: 0
-            }
+            },
+            ab_limit_buy_price: -1
         };
 
         if (trade.ab.method === 'Buy') {
             // Buying BA
-            const dustedB = CalculationNode.orderBookConversion(investmentA, trade.symbol.a, trade.symbol.b, trade.ab.ticker, depthSnapshot.ab);
+            const dustedB = CalculationNode.orderBookConversion(calculated, investmentA, trade.symbol.a, trade.symbol.b, trade.ab.ticker, depthSnapshot.ab, "AB");
             calculated.b.earned = calculated.ab = CalculationNode.calculateDustless(trade.ab, dustedB);
-            calculated.a.spent = CalculationNode.orderBookReverseConversion(calculated.b.earned, trade.symbol.b, trade.symbol.a, trade.ab.ticker, depthSnapshot.ab);
+            calculated.a.spent = CalculationNode.orderBookReverseConversion(calculated, calculated.b.earned, trade.symbol.b, trade.symbol.a, trade.ab.ticker, depthSnapshot.ab, "AB");
         } else {
             // Selling AB
             calculated.a.spent = calculated.ab = CalculationNode.calculateDustless(trade.ab, investmentA);
-            calculated.b.earned = CalculationNode.orderBookConversion(calculated.a.spent, trade.symbol.a, trade.symbol.b, trade.ab.ticker, depthSnapshot.ab);
+            calculated.b.earned = CalculationNode.orderBookConversion(calculated, calculated.a.spent, trade.symbol.a, trade.symbol.b, trade.ab.ticker, depthSnapshot.ab, "AB");
         }
 
         if (trade.bc.method === 'Buy') {
             // Buying CB
-            const dustedC = CalculationNode.orderBookConversion(calculated.b.earned, trade.symbol.b, trade.symbol.c, trade.bc.ticker, depthSnapshot.bc);
+            const dustedC = CalculationNode.orderBookConversion(calculated, calculated.b.earned, trade.symbol.b, trade.symbol.c, trade.bc.ticker, depthSnapshot.bc, "BC");
             calculated.c.earned = calculated.bc = CalculationNode.calculateDustless(trade.bc, dustedC);
-            calculated.b.spent = CalculationNode.orderBookReverseConversion(calculated.c.earned, trade.symbol.c, trade.symbol.b, trade.bc.ticker, depthSnapshot.bc);
+            calculated.b.spent = CalculationNode.orderBookReverseConversion(calculated, calculated.c.earned, trade.symbol.c, trade.symbol.b, trade.bc.ticker, depthSnapshot.bc, "BC");
         } else {
             // Selling BC
             calculated.b.spent = calculated.bc = CalculationNode.calculateDustless(trade.bc, calculated.b.earned);
-            calculated.c.earned = CalculationNode.orderBookConversion(calculated.b.spent, trade.symbol.b, trade.symbol.c, trade.bc.ticker, depthSnapshot.bc);
+            calculated.c.earned = CalculationNode.orderBookConversion(calculated, calculated.b.spent, trade.symbol.b, trade.symbol.c, trade.bc.ticker, depthSnapshot.bc, "BC");
         }
 
         if (trade.ca.method === 'Buy') {
             // Buying AC
-            const dustedA = CalculationNode.orderBookConversion(calculated.c.earned, trade.symbol.c, trade.symbol.a, trade.ca.ticker, depthSnapshot.ca);
+            const dustedA = CalculationNode.orderBookConversion(calculated, calculated.c.earned, trade.symbol.c, trade.symbol.a, trade.ca.ticker, depthSnapshot.ca, "CA");
             calculated.a.earned = calculated.ca = CalculationNode.calculateDustless(trade.ca, dustedA);
-            calculated.c.spent = CalculationNode.orderBookReverseConversion(calculated.a.earned, trade.symbol.a, trade.symbol.c, trade.ca.ticker, depthSnapshot.ca);
+            calculated.c.spent = CalculationNode.orderBookReverseConversion(calculated, calculated.a.earned, trade.symbol.a, trade.symbol.c, trade.ca.ticker, depthSnapshot.ca, "CA");
         } else {
             // Selling CA
             calculated.c.spent = calculated.ca = CalculationNode.calculateDustless(trade.ca, calculated.c.earned);
-            calculated.a.earned = CalculationNode.orderBookConversion(calculated.c.spent, trade.symbol.c, trade.symbol.a, trade.ca.ticker, depthSnapshot.ca);
+            calculated.a.earned = CalculationNode.orderBookConversion(calculated, calculated.c.spent, trade.symbol.c, trade.symbol.a, trade.ca.ticker, depthSnapshot.ca, "CA");
         }
 
         // Calculate deltas
@@ -131,7 +132,14 @@ const CalculationNode = {
         }
     },
 
-    orderBookConversion(amountFrom, symbolFrom, symbolTo, ticker, depthSnapshot) {
+    //             bid_weight  ask_weight
+    //         |---------------|--------|
+    // askRate -------------------------- bidRate
+    getWeightedRate(ask_weight, bid_weight, askRate, bidRate) {
+        return (bid_weight * bidRate + ask_weight * askRate) / (ask_weight + bid_weight);
+    },
+
+    orderBookConversion(calculated, amountFrom, symbolFrom, symbolTo, ticker, depthSnapshot, phase) {
         if (amountFrom === 0) return 0;
 
         let amountTo = 0;
@@ -140,6 +148,7 @@ const CalculationNode = {
         const askRates = Object.keys(depthSnapshot.asks || {});
 
         if (parseFloat(bidRates[0]) > parseFloat(askRates[0])) throw new Error(`Spread does not exist for ${ticker}`);
+        let trig = Boolean(CONFIG.TRADING.EXECUTION_STRATEGY.toLowerCase() === 'trigger' && phase == "AB");
 
         if (ticker === symbolFrom + symbolTo) {
             for (i=0; i<bidRates.length; i++) {
@@ -154,10 +163,20 @@ const CalculationNode = {
                     return amountTo + (amountFrom * rate);
                 }
             }
+
         } else {
+            // AB - Buy
             for (i=0; i<askRates.length; i++) {
-                rate = parseFloat(askRates[i]);
-                quantity = depthSnapshot.asks[askRates[i]];
+                if (trig) {
+                    rate = CalculationNode.getWeightedRate(1, 9, askRates[0], bidRates[i])
+                    //rate = parseFloat(bidRates[i]);
+                    quantity = depthSnapshot.bids[bidRates[i]];
+                    calculated.ab_limit_buy_price = rate;
+                } else {
+                    rate = parseFloat(askRates[i]);
+                    quantity = depthSnapshot.asks[askRates[i]];
+                }
+
                 exchangeableAmount = quantity * rate;
                 if (exchangeableAmount < amountFrom) {
                     amountFrom -= exchangeableAmount;
@@ -172,7 +191,7 @@ const CalculationNode = {
         throw new Error(`Bid depth (${bidRates.length}) or ask depth (${askRates.length}) too shallow to convert ${amountFrom} ${symbolFrom} to ${symbolTo} using ${ticker}`);
     },
 
-    orderBookReverseConversion(amountFrom, symbolFrom, symbolTo, ticker, depthSnapshot) {
+    orderBookReverseConversion(calculated, amountFrom, symbolFrom, symbolTo, ticker, depthSnapshot, phase) {
         if (amountFrom === 0) return 0;
 
         let amountTo = 0;
@@ -181,11 +200,18 @@ const CalculationNode = {
         const askRates = Object.keys(depthSnapshot.asks || {});
 
         if (parseFloat(bidRates[0]) > parseFloat(askRates[0])) throw new Error(`Spread does not exist for ${ticker}`);
+        let trig = Boolean(CONFIG.TRADING.EXECUTION_STRATEGY.toLowerCase() === 'trigger' && phase == "AB");
 
         if (ticker === symbolFrom + symbolTo) {
             for (i=0; i<askRates.length; i++) {
-                rate = parseFloat(askRates[i]);
-                quantity = depthSnapshot.asks[askRates[i]];
+                if (trig) {
+                    rate = CalculationNode.getWeightedRate(1, 9, askRates[0], bidRates[i])
+                    //rate = parseFloat(bidRates[i]);
+                    quantity = depthSnapshot.bids[bidRates[i]];
+                } else {
+                    rate = parseFloat(askRates[i]);
+                    quantity = depthSnapshot.asks[askRates[i]];
+                }
                 exchangeableAmount = quantity * rate;
                 if (quantity < amountFrom) {
                     amountFrom -= quantity;

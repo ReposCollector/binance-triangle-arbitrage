@@ -143,9 +143,68 @@ const ArbitrageExecution = {
         switch (CONFIG.TRADING.EXECUTION_STRATEGY.toLowerCase()) {
             case 'parallel':
                 return ArbitrageExecution.parallelExecutionStrategy;
+            case 'trigger':
+                return ArbitrageExecution.triggerExecutionStrategy;
             default:
                 return ArbitrageExecution.linearExecutionStrategy;
         }
+    },
+
+    triggerExecutionStrategy(calculated) {
+        let actual = {
+            a: {
+                spent: 0,
+                earned: 0
+            },
+            b: {
+                spent: 0,
+                earned: 0
+            },
+            c: {
+                spent: 0,
+                earned: 0
+            },
+            fees: 0
+        };
+        let recalculated = {
+            bc: calculated.bc,
+            ca: calculated.ca
+        };
+
+        if (calculated.ab_limit_buy_price == -1) {
+            throw new Error('FUCK');
+        }
+
+        return BinanceApi.limitBuyOrSell(calculated.trade.ab.method)(calculated.trade.ab.ticker, calculated.ab, calculated.ab_limit_buy_price)
+            .then((results) => {
+                if (results.orderId) {
+                    [actual.a.spent, actual.b.earned, fees] = ArbitrageExecution.parseActualResults(calculated.trade.ab.method, results);
+                    actual.fees += fees;
+                    recalculated.bc = CalculationNode.recalculateTradeLeg(calculated.trade.bc, actual.b.earned, BinanceApi.cloneDepth(calculated.trade.bc.ticker, CONFIG.DEPTH.SIZE));
+                }
+                return BinanceApi.marketBuyOrSell(calculated.trade.bc.method)(calculated.trade.bc.ticker, recalculated.bc);
+            })
+            .then((results) => {
+                if (results.orderId) {
+                    [actual.b.spent, actual.c.earned, fees] = ArbitrageExecution.parseActualResults(calculated.trade.bc.method, results);
+                    actual.fees += fees;
+                    recalculated.ca = CalculationNode.recalculateTradeLeg(calculated.trade.ca, actual.c.earned, BinanceApi.cloneDepth(calculated.trade.ca.ticker, CONFIG.DEPTH.SIZE));
+                }
+                return BinanceApi.marketBuyOrSell(calculated.trade.ca.method)(calculated.trade.ca.ticker, recalculated.ca);
+            })
+            .then((results) => {
+                if (results.orderId) {
+                    [actual.c.spent, actual.a.earned, fees] = ArbitrageExecution.parseActualResults(calculated.trade.ca.method, results);
+                    actual.fees += fees;
+                }
+                return actual;
+            })
+            .then((actual) => {
+                actual.a.delta = actual.a.earned - actual.a.spent;
+                actual.b.delta = actual.b.earned - actual.b.spent;
+                actual.c.delta = actual.c.earned - actual.c.spent;
+                return actual;
+            });
     },
 
     parallelExecutionStrategy(calculated) {

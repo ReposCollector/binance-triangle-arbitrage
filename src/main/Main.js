@@ -90,7 +90,7 @@ function checkConfig() {
 
     const VALID_VALUES = {
         TRADING: {
-            EXECUTION_STRATEGY: ['linear', 'parallel']
+            EXECUTION_STRATEGY: ['linear', 'parallel', 'trigger']
         },
         DEPTH: {
             SIZE: [5, 10, 20, 50, 100, 500, 1000]

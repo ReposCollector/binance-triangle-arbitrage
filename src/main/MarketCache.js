@@ -9,7 +9,7 @@ const MarketCache = {
 
     initialize(exchangeInfo, whitelistSymbols, baseSymbol) {
         let tickers = [];
-        let tradingSymbolObjects = exchangeInfo.symbols.filter(symbolObj => symbolObj.status === 'TRADING');
+        let tradingSymbolObjects = exchangeInfo.symbols.filter(symbolObj => symbolObj.status === 'TRADING' );
         let symbols = new Set();
 
         console.log(`Found ${tradingSymbolObjects.length}/${exchangeInfo.symbols.length} currently trading tickers`);
@@ -24,6 +24,7 @@ const MarketCache = {
             symbols.add(symbolObj.quoteAsset);
             symbolObj.dustDecimals = Math.max(symbolObj.filters.filter(f => f.filterType === 'LOT_SIZE')[0].minQty.indexOf('1') - 1, 0);
             tickers[symbolObj.symbol] = symbolObj;
+            //console.log(`Adding a symbole ${symbolObj}`);
         });
 
         // Initialize market cache
@@ -95,6 +96,9 @@ const MarketCache = {
         if (!bc) return;
         if (CONFIG.TRADING.EXECUTION_TEMPLATE[1] && CONFIG.TRADING.EXECUTION_TEMPLATE[1].toUpperCase() !== bc.method.toUpperCase()) return;
 
+        if (ab.quote == "BNB") {
+            let x = 0;
+        }
         const ca = MarketCache.getRelationship(c, a);
         if (!ca) return;
         if (CONFIG.TRADING.EXECUTION_TEMPLATE[2] && CONFIG.TRADING.EXECUTION_TEMPLATE[2].toUpperCase() !== ca.method.toUpperCase()) return;

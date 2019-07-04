@@ -16,10 +16,10 @@
     "start": "node src/main/Main.js"
   },
   "dependencies": {
+    "@babel/runtime-corejs2": "^7.4.5",
     "blessed": "^0.1.81",
-    "node-binance-api": "^0.9.3",
+    "node-binance-api": "^0.9.4",
     "pino": "^5.12.6",
-    "pino-pretty": "^3.2.0"
-  },
-  "license": "MIT"
+    "pino-pretty": "^3.2.0",
+  }
 }
