@@ -116,7 +116,7 @@ const BinanceApi = {
     },
 
     limitBuyOrSell(method) {
-        return method.toUpperCase() === 'BUY' ? BinanceApi.marketBuy : BinanceApi.marketSell;
+        return method.toUpperCase() === 'BUY' ? BinanceApi.limitBuy : BinanceApi.limitSell;
     },
 
     handleBuyOrSellError(error, reject) {
