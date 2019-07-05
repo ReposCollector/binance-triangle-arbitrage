@@ -85,7 +85,7 @@ const BinanceApi = {
         return method.toUpperCase() === 'BUY' ? BinanceApi.marketBuy : BinanceApi.marketSell;
     },
 
-    limitBuy(ticker, price, quantity) {
+    limitBuy(ticker, quantity, price) {
         logger.execution.info(`${binance.getOption('test') ? 'Test: Buying' : 'Buying'} ${quantity} ${ticker} @ price ${price}`);
         return new Promise((resolve, reject) => {
             binance.buy(ticker, quantity, price,(error, response) => {
@@ -100,7 +100,7 @@ const BinanceApi = {
         })
     },
 
-    limitSell(ticker, price, quantity) {
+    limitSell(ticker, quantity, price) {
         logger.execution.info(`${binance.getOption('test') ? 'Test: Selling' : 'Selling'} ${quantity} ${ticker} @ price ${price}`);
         return new Promise((resolve, reject) => {
             binance.sell(ticker, quantity, price,(error, response) => {
